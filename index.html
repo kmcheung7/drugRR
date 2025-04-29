@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Offline Teachable-Machine Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+    html,body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;text-align:center;background:#111;color:#fafafa}
+    #webcam-container,canvas{margin:auto}
+    #label-container div{margin:2px 0;font-size:1.1rem}
+    button{padding:.6em 1.2em;font-size:1rem;border:none;border-radius:8px;background:#0af;color:#fff;margin-top:1.2em}
+    button:active{background:#08c}
+</style>
+</head>
+<body>
+    <h1>Teachable-Machine Image Model</h1>
+    <button id="start">Start</button>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+
+<!-- local copies of the libraries -->
+<script src="tf.min.js"></script>
+<script src="teachablemachine-image.min.js"></script>
+
+<script>
+/* ------------- CONFIG ---------------- */
+const MODEL_DIR   = "./my_model/";          // folder that holds model.json, metadata.json ...
+const WEBCAM_SIZE = 224;                    // match the size you trained with
+const FLIP_CAM    = true;                   // mirror preview?
+/* ------------------------------------- */
+
+let model, webcam, labelContainer, maxPredictions;
+
+document.getElementById("start").addEventListener("click", init);
+
+async function init(){
+    try{
+        document.getElementById("start").disabled = true;
+
+        // 1. Load the model
+        model = await tmImage.load(
+            MODEL_DIR + "model.json",
+            MODEL_DIR + "metadata.json"
+        );
+        maxPredictions = model.getTotalClasses();
+
+        // 2. Prepare webcam
+        webcam = new tmImage.Webcam(WEBCAM_SIZE, WEBCAM_SIZE, FLIP_CAM);
+        await webcam.setup();          // ask for permission
+        await webcam.play();
+
+        // 3. Draw first frame and attach to DOM
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++){
+            labelContainer.appendChild(document.createElement("div"));
+        }
+        window.requestAnimationFrame(loop);
+    }catch(err){
+        alert("Unable to start webcam: "+err);
+    }
+}
+
+async function loop(){
+    webcam.update();
+    await predict();
+    window.requestAnimationFrame(loop);
+}
+
+async function predict(){
+    const prediction = await model.predict(webcam.canvas);
+    for (let i = 0; i < maxPredictions; i++){
+        const p = prediction[i];
+        labelContainer.childNodes[i].textContent =
+            `${p.className}: ${p.probability.toFixed(2)}`;
+    }
+}
+</script>
+</body>
+</html>
